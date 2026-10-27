@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Project Health Monitor Connector</title>
+    <!-- Official Trello Power-Up Client Library -->
+    <script src="https://p.trellocdn.com/power-up.min.js"></script>
+    <script>
+      window.TrelloPowerUp.initialize({
+        'board-buttons': function (t, options) {
+          return [
+            {
+              icon: {
+                dark: window.location.origin + '/icon.png',
+                light: window.location.origin + '/icon.png'
+              },
+              text: 'Project Health Monitor',
+              callback: function (tContext) {
+                return tContext.modal({
+                  title: 'Project Health Monitor',
+                  url: window.location.origin + '/index.html',
+                  height: 860,
+                  fullscreen: false
+                });
+              }
+            }
+          ];
+        },
+        'card-buttons': function (t, options) {
+          return [
+            {
+              icon: window.location.origin + '/icon.png',
+              text: 'Project Health Monitor',
+              callback: function (tContext) {
+                return tContext.modal({
+                  title: 'Project Health Monitor',
+                  url: window.location.origin + '/index.html',
+                  height: 860,
+                  fullscreen: false
+                });
+              }
+            }
+          ];
+        },
+        'card-badges': function (t, options) {
+          return t.card('due', 'dueComplete', 'labels', 'name')
+            .then(function (card) {
+              var badges = [];
+              if (!card) return badges;
+
+              // Check if card is marked complete
+              if (card.dueComplete) {
+                return [{
+                  text: '✓ On Track',
+                  color: 'green'
+                }];
+              }
+
+              // Check for blocked label
+              var isBlocked = card.labels && card.labels.some(function (l) {
+                return l.name && l.name.toLowerCase().indexOf('block') !== -1;
+              });
+
+              if (isBlocked) {
+                badges.push({
+                  text: '🚫 Blocked',
+                  color: 'red'
+                });
+              }
+
+              // Check due date
+              if (card.due) {
+                var now = new Date();
+                var dueDate = new Date(card.due);
+                var diffMs = dueDate - now;
+                var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+                if (diffMs < 0) {
+                  var overdueDays = Math.abs(diffDays);
+                  badges.push({
+                    text: '⚠️ Overdue (' + (overdueDays <= 1 ? '1d' : overdueDays + 'd') + ')',
+                    color: 'red'
+                  });
+                } else if (diffDays <= 3) {
+                  badges.push({
+                    text: '⏰ Due soon (' + (diffDays === 0 ? 'Today' : diffDays + 'd') + ')',
+                    color: 'yellow'
+                  });
+                }
+              }
+
+              return badges;
+            })
+            .catch(function () {
+              return [];
+            });
+        },
+        'card-detail-badges': function (t, options) {
+          return t.card('due', 'dueComplete', 'labels')
+            .then(function (card) {
+              if (!card || !card.due) return [];
+
+              var now = new Date();
+              var dueDate = new Date(card.due);
+              var isOverdue = !card.dueComplete && dueDate < now;
+
+              if (isOverdue) {
+                return [{
+                  title: 'Project Health',
+                  text: 'Critical Delay: Card is past due date',
+                  color: 'red',
+                  callback: function (tContext) {
+                    return tContext.modal({
+                      title: 'Project Health Monitor',
+                      url: window.location.origin + '/index.html',
+                      height: 860,
+                      fullscreen: false
+                    });
+                  }
+                }];
+              }
+              return [];
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+      });
+    </script>
+  </head>
+  <body></body>
+</html>

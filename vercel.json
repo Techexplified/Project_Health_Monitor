@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/connector.html",
+      "destination": "/connector.html"
+    },
+    {
+      "source": "/icon.png",
+      "destination": "/icon.png"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
