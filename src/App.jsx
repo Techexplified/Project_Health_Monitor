@@ -104,6 +104,48 @@ export default function App() {
     }
   };
 
+  // Redirect to the clicked card on the Trello board
+  const handleCardClick = (card) => {
+    if (!card) return;
+
+    // 1. If running inside Trello Power-Up context:
+    if (tContext) {
+      // If valid 24-character Trello card ID, use t.showCard to open directly on the board
+      if (typeof tContext.showCard === 'function' && card.id && /^[0-9a-fA-F]{24}$/.test(card.id)) {
+        tContext.showCard(card.id).catch((err) => {
+          console.warn('t.showCard failed, navigating via URL:', err);
+          if (card.url && card.url !== '#') {
+            if (typeof tContext.navigate === 'function') {
+              tContext.navigate({ url: card.url });
+            } else {
+              window.open(card.url, '_blank');
+            }
+          }
+        });
+        return;
+      }
+
+      // If card.url is available, navigate or open
+      if (card.url && card.url !== '#') {
+        if (typeof tContext.navigate === 'function') {
+          tContext.navigate({ url: card.url });
+          return;
+        } else {
+          window.open(card.url, '_blank');
+          return;
+        }
+      }
+    }
+
+    // 2. Direct browser navigation if outside Trello:
+    if (card.url && card.url !== '#') {
+      window.open(card.url, '_blank');
+    } else {
+      // Demo card fallback: open detail modal
+      setSelectedCard(card);
+    }
+  };
+
   const handleExport = () => {
     const csvRows = [
       ['Metric', 'Value'],
@@ -198,7 +240,7 @@ export default function App() {
               <DeadlineRiskSection
                 cards={atRiskCards}
                 members={members}
-                onCardClick={(card) => setSelectedCard(card)}
+                onCardClick={handleCardClick}
               />
             </div>
 

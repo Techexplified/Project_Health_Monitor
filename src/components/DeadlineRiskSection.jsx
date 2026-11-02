@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, ChevronRight, Clock, AlertTriangle, Ban } from 'lucide-react';
+import { Calendar, ExternalLink, Clock, AlertTriangle, Ban } from 'lucide-react';
 
 export default function DeadlineRiskSection({
   cards = [],
@@ -29,7 +29,7 @@ export default function DeadlineRiskSection({
             Deadline risk
           </h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Cards that need attention first
+            Cards that need attention first (click to open card in Trello)
           </p>
         </div>
 
@@ -95,13 +95,17 @@ export default function DeadlineRiskSection({
               <div
                 key={card.id}
                 onClick={() => onCardClick && onCardClick(card)}
-                className={`p-4 hover:bg-slate-50/70 border-l-4 ${accentBorder} transition-colors cursor-pointer flex items-center justify-between gap-3 group`}
+                title={`Open "${card.title}" on Trello Board`}
+                className={`p-4 hover:bg-slate-50/80 border-l-4 ${accentBorder} transition-colors cursor-pointer flex items-center justify-between gap-3 group`}
               >
                 {/* Left: Title, list name, member, due date */}
                 <div className="min-w-0 space-y-1">
-                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
-                    {card.title}
-                  </h4>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                      {card.title}
+                    </h4>
+                    <ExternalLink className="w-3 h-3 text-slate-300 group-hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </div>
 
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
                     <span className="text-slate-400">in</span>
@@ -138,7 +142,7 @@ export default function DeadlineRiskSection({
                   </div>
                 </div>
 
-                {/* Right: Badge, overdue days, chevron */}
+                {/* Right: Badge, overdue days, open link icon */}
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -161,7 +165,9 @@ export default function DeadlineRiskSection({
                     )}
                   </div>
 
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               </div>
             );
