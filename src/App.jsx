@@ -19,6 +19,7 @@ import {
 
 import {
   getTrelloContext,
+  waitForTrelloContext,
   autoSize,
   isInsideTrello,
   getBoardData
@@ -28,6 +29,7 @@ import { computeProjectHealth } from './utils/healthCalculator';
 
 export default function App() {
   const [tContext, setTContext] = useState(null);
+  const [boardData, setBoardData] = useState(null);
   const [boardName, setBoardName] = useState(MOCK_BOARD_NAME);
   const [timeRange, setTimeRange] = useState('30');
   const [metrics, setMetrics] = useState(MOCK_METRICS);
@@ -42,15 +44,25 @@ export default function App() {
 
   // Initialize Trello Power-Up context and load real board data
   useEffect(() => {
+    let isMounted = true;
+
     async function init() {
-      const t = getTrelloContext();
+      // Wait for Trello iframe context if inside Trello
+      const t = await waitForTrelloContext(3500);
+      if (!isMounted) return;
+
       if (t) {
         setTContext(t);
         autoSize(t);
-        await loadBoard(t);
+        await loadBoard(t, timeRange);
       }
     }
+
     init();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Update modal height if state changes
@@ -60,19 +72,44 @@ export default function App() {
     }
   }, [tContext, isInsightsOpen, selectedCard, atRiskCards]);
 
-  const loadBoard = async (t) => {
+  // Recalculate health metrics whenever timeRange changes
+  const handleTimeRangeChange = (newRange) => {
+    setTimeRange(newRange);
+    if (boardData) {
+      const health = computeProjectHealth({
+        cards: boardData.cards || [],
+        lists: boardData.lists || [],
+        members: boardData.members || [],
+        filterRange: newRange
+      });
+
+      if (health) {
+        setMetrics(health.metrics);
+        setAtRiskCards(health.atRiskCards);
+        setWorkloadSignals(health.workloadSignals);
+        setAiSummary(health.aiSummary);
+      }
+    }
+  };
+
+  const loadBoard = async (t, range = timeRange) => {
     setIsRefreshing(true);
     try {
       const data = await getBoardData(t);
-      if (data && data.cards && data.cards.length > 0) {
-        setBoardName(data.boardName || 'Trello Board');
-        setMembers(data.members || []);
+      if (data) {
+        setBoardData(data);
+        if (data.boardName) {
+          setBoardName(data.boardName);
+        }
+        if (data.members && data.members.length > 0) {
+          setMembers(data.members);
+        }
 
         const health = computeProjectHealth({
-          cards: data.cards,
-          lists: data.lists,
-          members: data.members,
-          filterRange: timeRange
+          cards: data.cards || [],
+          lists: data.lists || [],
+          members: data.members || [],
+          filterRange: range
         });
 
         if (health) {
@@ -91,7 +128,7 @@ export default function App() {
 
   const handleRefresh = () => {
     if (tContext) {
-      loadBoard(tContext);
+      loadBoard(tContext, timeRange);
     } else {
       setIsRefreshing(true);
       setTimeout(() => setIsRefreshing(false), 500);
@@ -108,38 +145,54 @@ export default function App() {
   const handleCardClick = (card) => {
     if (!card) return;
 
+    const cardUrl = card.url && card.url !== '#' 
+      ? card.url 
+      : (card.shortLink ? `https://trello.com/c/${card.shortLink}` : (card.id ? `https://trello.com/c/${card.id}` : null));
+
     // 1. If running inside Trello Power-Up context:
     if (tContext) {
       // If valid 24-character Trello card ID, use t.showCard to open directly on the board
       if (typeof tContext.showCard === 'function' && card.id && /^[0-9a-fA-F]{24}$/.test(card.id)) {
-        tContext.showCard(card.id).catch((err) => {
-          console.warn('t.showCard failed, navigating via URL:', err);
-          if (card.url && card.url !== '#') {
-            if (typeof tContext.navigate === 'function') {
-              tContext.navigate({ url: card.url });
-            } else {
-              window.open(card.url, '_blank');
+        try {
+          tContext.showCard(card.id).catch((err) => {
+            console.warn('t.showCard failed, navigating via URL:', err);
+            if (cardUrl) {
+              if (typeof tContext.navigate === 'function') {
+                tContext.navigate({ url: cardUrl });
+              } else {
+                window.open(cardUrl, '_blank');
+              }
             }
+          });
+
+          // Close modal so Trello cleanly displays the opened card
+          if (typeof tContext.closeModal === 'function') {
+            tContext.closeModal();
           }
-        });
-        return;
+          return;
+        } catch (e) {
+          console.warn('Error in showCard:', e);
+        }
       }
 
-      // If card.url is available, navigate or open
-      if (card.url && card.url !== '#') {
+      // If cardUrl is available, navigate parent Trello window or open
+      if (cardUrl) {
         if (typeof tContext.navigate === 'function') {
-          tContext.navigate({ url: card.url });
+          tContext.navigate({ url: cardUrl });
+          if (typeof tContext.closeModal === 'function') {
+            tContext.closeModal();
+          }
           return;
         } else {
-          window.open(card.url, '_blank');
+          window.open(cardUrl, '_blank');
           return;
         }
       }
     }
 
     // 2. Direct browser navigation if outside Trello:
-    if (card.url && card.url !== '#') {
-      window.open(card.url, '_blank');
+    if (cardUrl) {
+      window.open(cardUrl, '_blank');
     } else {
       // Demo card fallback: open detail modal
       setSelectedCard(card);
@@ -187,7 +240,7 @@ export default function App() {
         <Header
           boardName={boardName}
           timeRange={timeRange}
-          setTimeRange={setTimeRange}
+          setTimeRange={handleTimeRangeChange}
           onExport={handleExport}
           onRefresh={handleRefresh}
           onClose={handleClose}

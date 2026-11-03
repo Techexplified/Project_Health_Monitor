@@ -2,7 +2,31 @@
 
 export function computeProjectHealth({ cards = [], lists = [], members = [], filterRange = '30' }) {
   if (!cards || cards.length === 0) {
-    return null;
+    return {
+      metrics: {
+        healthScore: 100,
+        healthStatus: 'ON TRACK',
+        headline: 'Project health is optimal',
+        impactText: 'No overdue or blocked cards on this board.',
+        overdue: 0,
+        dueSoon: 0,
+        blocked: 0,
+        completed: 0,
+        ongoing: 0,
+        totalCards: 0,
+        completedInPeriod: 0
+      },
+      atRiskCards: [],
+      workloadSignals: [],
+      aiSummary: {
+        title: 'Project health is optimal.',
+        body: 'Zero overdue cards detected. Tasks are progressing smoothly according to the board timeline.',
+        recommendations: [
+          'Add due dates and assignees to cards to monitor project health velocity.',
+          'Organize cards into lists to track completion progress.'
+        ]
+      }
+    };
   }
 
   const listMap = {};
@@ -26,9 +50,9 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
     memberWorkload[m.id] = {
       id: m.id,
       name: m.fullName || m.username || 'Member',
-      initials: (m.initials || m.fullName?.slice(0, 2) || 'TM').toUpperCase(),
+      initials: (m.initials || m.fullName?.slice(0, 2) || m.username?.slice(0, 2) || 'TM').toUpperCase(),
       avatar: m.avatar || m.avatarUrl || null,
-      avatarColor: getMemberColor(m.id || m.fullName),
+      avatarColor: getMemberColor(m.id || m.fullName || m.username),
       totalCards: 0,
       completedCards: 0,
       overdueCards: 0
@@ -38,10 +62,14 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
   cards.forEach(card => {
     const listName = (listMap[card.idList] || '').toLowerCase();
     const isCompletedList = listName.includes('done') || listName.includes('complete') || listName.includes('finish');
-    const isCompleted = card.dueComplete || isCompletedList;
+    const isCompleted = Boolean(card.dueComplete || card.badges?.dueComplete || isCompletedList);
 
-    const isBlocked = (card.labels && card.labels.some(l => l.name && l.name.toLowerCase().includes('block'))) ||
-                      listName.includes('block');
+    const isBlocked = Boolean(
+      (card.labels && card.labels.some(l => l.name && l.name.toLowerCase().includes('block'))) ||
+      (card.name && card.name.toLowerCase().includes('block')) ||
+      (card.title && card.title.toLowerCase().includes('block')) ||
+      listName.includes('block')
+    );
 
     let isOverdue = false;
     let isDueSoon = false;
@@ -49,12 +77,12 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
 
     if (card.due && !isCompleted) {
       const dueDate = new Date(card.due);
-      const diffMs = dueDate - now;
+      const diffMs = dueDate.getTime() - now.getTime();
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
       if (diffMs < 0) {
         isOverdue = true;
-        daysOverdue = Math.max(1, Math.abs(diffDays));
+        daysOverdue = Math.max(1, Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24)));
       } else if (diffDays <= 3) {
         isDueSoon = true;
       }
@@ -72,8 +100,20 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
       ongoingCount++;
     }
 
-    // Assign to members
-    const assignedIds = card.idMembers && card.idMembers.length > 0 ? card.idMembers : [];
+    // Extract member IDs whether card has .idMembers or .members array
+    const assignedIds = [];
+    if (Array.isArray(card.idMembers) && card.idMembers.length > 0) {
+      assignedIds.push(...card.idMembers);
+    }
+    if (Array.isArray(card.members) && card.members.length > 0) {
+      card.members.forEach(m => {
+        const mId = typeof m === 'object' && m ? m.id : m;
+        if (mId && !assignedIds.includes(mId)) {
+          assignedIds.push(mId);
+        }
+      });
+    }
+
     assignedIds.forEach(memId => {
       if (memberWorkload[memId]) {
         memberWorkload[memId].totalCards++;
@@ -85,22 +125,47 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
     // Populate at-risk list if overdue, due soon, or blocked
     if ((isOverdue || isDueSoon || isBlocked) && !isCompleted) {
       const firstMemberId = assignedIds[0];
-      const memberObj = memberWorkload[firstMemberId] || {
-        name: 'Unassigned',
-        initials: 'UN',
-        avatarColor: 'bg-slate-500'
-      };
+      let memberObj = memberWorkload[firstMemberId];
+      if (!memberObj && memberMap[firstMemberId]) {
+        const m = memberMap[firstMemberId];
+        memberObj = {
+          name: m.fullName || m.username || 'Member',
+          initials: (m.initials || m.fullName?.slice(0, 2) || m.username?.slice(0, 2) || 'TM').toUpperCase(),
+          avatar: m.avatar || m.avatarUrl || null,
+          avatarColor: getMemberColor(m.id || m.fullName || m.username)
+        };
+      }
+      if (!memberObj && Array.isArray(card.members) && card.members[0] && typeof card.members[0] === 'object') {
+        const m = card.members[0];
+        memberObj = {
+          name: m.fullName || m.username || 'Member',
+          initials: (m.initials || m.fullName?.slice(0, 2) || m.username?.slice(0, 2) || 'TM').toUpperCase(),
+          avatar: m.avatar || m.avatarUrl || null,
+          avatarColor: getMemberColor(m.id || m.fullName || m.username)
+        };
+      }
+      if (!memberObj) {
+        memberObj = {
+          name: 'Unassigned',
+          initials: 'UN',
+          avatarColor: 'bg-slate-500'
+        };
+      }
+
+      const cardUrl = card.url && card.url !== '#' 
+        ? card.url 
+        : (card.shortLink ? `https://trello.com/c/${card.shortLink}` : (card.id ? `https://trello.com/c/${card.id}` : '#'));
 
       atRiskCards.push({
         id: card.id,
-        title: card.name,
+        title: card.name || card.title || 'Untitled Card',
         listName: listMap[card.idList] || 'Card',
         member: memberObj,
-        dueDate: card.due ? formatCardDue(card.due) : 'No date',
+        dueDate: card.due ? formatCardDue(card.due) : (isBlocked ? 'Blocked' : 'No date'),
         daysOverdue,
         riskType: isOverdue ? 'Overdue' : (isDueSoon ? 'Due soon' : 'Blocked'),
         riskSeverity: isOverdue ? (daysOverdue > 2 ? 'critical' : 'high') : (isBlocked ? 'high' : 'medium'),
-        url: card.url || '#'
+        url: cardUrl
       });
     }
   });
@@ -180,7 +245,7 @@ function formatCardDue(dateStr) {
   }
 }
 
-function getMemberColor(str = '') {
+export function getMemberColor(str = '') {
   const colors = [
     'bg-blue-600',
     'bg-emerald-600',
