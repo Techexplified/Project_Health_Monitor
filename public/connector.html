@@ -6,124 +6,174 @@
     <!-- Official Trello Power-Up Client Library -->
     <script src="https://p.trellocdn.com/power-up.min.js"></script>
     <script>
+      function getAppOrigin() {
+        if (typeof window !== 'undefined' && window.location) {
+          if (window.location.origin && window.location.origin !== 'null') {
+            return window.location.origin;
+          }
+          if (window.location.href) {
+            return window.location.href.split('/').slice(0, 3).join('/');
+          }
+        }
+        return '';
+      }
+
       window.TrelloPowerUp.initialize({
         'board-buttons': function (t, options) {
-          return [
-            {
-              icon: {
-                dark: window.location.origin + '/icon.png',
-                light: window.location.origin + '/icon.png'
-              },
-              text: 'Project Health Monitor',
-              callback: function (tContext) {
-                return tContext.modal({
-                  title: 'Project Health Monitor',
-                  url: window.location.origin + '/index.html',
-                  height: 860,
-                  fullscreen: false
-                });
-              }
-            }
-          ];
-        },
-        'card-buttons': function (t, options) {
-          return [
-            {
-              icon: window.location.origin + '/icon.png',
-              text: 'Project Health Monitor',
-              callback: function (tContext) {
-                return tContext.modal({
-                  title: 'Project Health Monitor',
-                  url: window.location.origin + '/index.html',
-                  height: 860,
-                  fullscreen: false
-                });
-              }
-            }
-          ];
-        },
-        'card-badges': function (t, options) {
-          return t.card('due', 'dueComplete', 'labels', 'name')
-            .then(function (card) {
-              var badges = [];
-              if (!card) return badges;
+          try {
+            var origin = getAppOrigin();
+            var iconUrl = origin + '/icon.png';
+            var appUrl = origin + '/index.html';
 
-              // Check if card is marked complete
-              if (card.dueComplete) {
-                return [{
-                  text: '✓ On Track',
-                  color: 'green'
-                }];
-              }
-
-              // Check for blocked label
-              var isBlocked = card.labels && card.labels.some(function (l) {
-                return l.name && l.name.toLowerCase().indexOf('block') !== -1;
-              });
-
-              if (isBlocked) {
-                badges.push({
-                  text: '🚫 Blocked',
-                  color: 'red'
-                });
-              }
-
-              // Check due date
-              if (card.due) {
-                var now = new Date();
-                var dueDate = new Date(card.due);
-                var diffMs = dueDate - now;
-                var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-                if (diffMs < 0) {
-                  var overdueDays = Math.abs(diffDays);
-                  badges.push({
-                    text: '⚠️ Overdue (' + (overdueDays <= 1 ? '1d' : overdueDays + 'd') + ')',
-                    color: 'red'
-                  });
-                } else if (diffDays <= 3) {
-                  badges.push({
-                    text: '⏰ Due soon (' + (diffDays === 0 ? 'Today' : diffDays + 'd') + ')',
-                    color: 'yellow'
+            return [
+              {
+                icon: {
+                  dark: iconUrl,
+                  light: iconUrl
+                },
+                text: 'Project Health Monitor',
+                callback: function (tContext) {
+                  return tContext.modal({
+                    title: 'Project Health Monitor',
+                    url: appUrl,
+                    height: 860,
+                    fullscreen: false
                   });
                 }
               }
-
-              return badges;
-            })
-            .catch(function () {
-              return [];
-            });
+            ];
+          } catch (err) {
+            console.error('Error in board-buttons:', err);
+            return [];
+          }
         },
-        'card-detail-badges': function (t, options) {
-          return t.card('due', 'dueComplete', 'labels')
-            .then(function (card) {
-              if (!card || !card.due) return [];
 
-              var now = new Date();
-              var dueDate = new Date(card.due);
-              var isOverdue = !card.dueComplete && dueDate < now;
+        'card-buttons': function (t, options) {
+          try {
+            var origin = getAppOrigin();
+            var iconUrl = origin + '/icon.png';
+            var appUrl = origin + '/index.html';
 
-              if (isOverdue) {
-                return [{
-                  title: 'Project Health',
-                  text: 'Critical Delay: Card is past due date',
-                  color: 'red',
-                  callback: function (tContext) {
-                    return tContext.modal({
-                      title: 'Project Health Monitor',
-                      url: window.location.origin + '/index.html',
-                      height: 860,
-                      fullscreen: false
+            return [
+              {
+                icon: iconUrl,
+                text: 'Project Health Monitor',
+                callback: function (tContext) {
+                  return tContext.modal({
+                    title: 'Project Health Monitor',
+                    url: appUrl,
+                    height: 860,
+                    fullscreen: false
+                  });
+                }
+              }
+            ];
+          } catch (err) {
+            console.error('Error in card-buttons:', err);
+            return [];
+          }
+        },
+
+        'card-badges': function (t, options) {
+          try {
+            return t.card('due', 'dueComplete', 'labels')
+              .then(function (card) {
+                if (!card) return [];
+
+                var badges = [];
+
+                // Check if card is marked complete
+                if (card.dueComplete) {
+                  badges.push({
+                    text: '✓ On Track',
+                    color: 'green'
+                  });
+                  return badges;
+                }
+
+                // Check for blocked label
+                if (Array.isArray(card.labels)) {
+                  var isBlocked = card.labels.some(function (l) {
+                    if (!l) return false;
+                    var name = typeof l === 'object' ? (l.name || '') : String(l);
+                    return name.toLowerCase().indexOf('block') !== -1;
+                  });
+
+                  if (isBlocked) {
+                    badges.push({
+                      text: '🚫 Blocked',
+                      color: 'red'
                     });
                   }
-                }];
-              }
-              return [];
-            })
-            .catch(function () {
-              return [];
-            });
+                }
+
+                // Check due date
+                if (card.due) {
+                  var now = new Date();
+                  var dueDate = new Date(card.due);
+                  var diffMs = dueDate.getTime() - now.getTime();
+                  var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+                  if (diffMs < 0) {
+                    var overdueDays = Math.max(1, Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24)));
+                    badges.push({
+                      text: '⚠️ Overdue (' + (overdueDays <= 1 ? '1d' : overdueDays + 'd') + ')',
+                      color: 'red'
+                    });
+                  } else if (diffDays <= 3) {
+                    badges.push({
+                      text: '⏰ Due soon (' + (diffDays === 0 ? 'Today' : diffDays + 'd') + ')',
+                      color: 'yellow'
+                    });
+                  }
+                }
+
+                return badges;
+              })
+              .catch(function () {
+                return [];
+              });
+          } catch (err) {
+            return [];
+          }
+        },
+
+        'card-detail-badges': function (t, options) {
+          try {
+            var origin = getAppOrigin();
+            var appUrl = origin + '/index.html';
+
+            return t.card('due', 'dueComplete')
+              .then(function (card) {
+                if (!card || !card.due || card.dueComplete) return [];
+
+                var now = new Date();
+                var dueDate = new Date(card.due);
+                var isOverdue = dueDate.getTime() < now.getTime();
+
+                if (isOverdue) {
+                  return [{
+                    title: 'Project Health',
+                    text: 'Critical Delay: Card is past due date',
+                    color: 'red',
+                    callback: function (tContext) {
+                      return tContext.modal({
+                        title: 'Project Health Monitor',
+                        url: appUrl,
+                        height: 860,
+                        fullscreen: false
+                      });
+                    }
+                  }];
+                }
+                return [];
+              })
+              .catch(function () {
+                return [];
+              });
+          } catch (err) {
+            return [];
+          }
         }
       });
     </script>

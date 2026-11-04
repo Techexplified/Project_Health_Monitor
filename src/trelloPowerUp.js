@@ -85,15 +85,13 @@ export async function getBoardData(t) {
     try {
       cards = await t.cards('all');
     } catch (e) {
-      console.warn("t.cards('all') failed, attempting explicit fields:", e);
       try {
         cards = await t.cards('id', 'name', 'idList', 'due', 'dueComplete', 'labels', 'url', 'members', 'badges', 'dateLastActivity');
       } catch (e2) {
-        console.warn("t.cards explicit failed, attempting basic fields:", e2);
         try {
           cards = await t.cards('id', 'name', 'idList', 'due', 'dueComplete', 'url');
         } catch (e3) {
-          console.error('Could not fetch cards from Trello:', e3);
+          // Cards could not be fetched
         }
       }
     }
