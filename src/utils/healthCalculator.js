@@ -1,13 +1,17 @@
 // Dynamic Health Score & Metrics Calculation Engine
 
 export function computeProjectHealth({ cards = [], lists = [], members = [], filterRange = '30' }) {
+  const isAllTime = !filterRange || filterRange === 'all';
+  const rangeDays = isAllTime ? null : parseInt(filterRange, 10);
+  const periodDesc = isAllTime ? 'overall' : `in the last ${rangeDays} days`;
+
   if (!cards || cards.length === 0) {
     return {
       metrics: {
         healthScore: 100,
         healthStatus: 'ON TRACK',
         headline: 'Project health is optimal',
-        impactText: 'No overdue or blocked cards on this board.',
+        impactText: `No overdue or blocked cards found ${periodDesc}.`,
         overdue: 0,
         dueSoon: 0,
         blocked: 0,
@@ -20,7 +24,7 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
       workloadSignals: [],
       aiSummary: {
         title: 'Project health is optimal.',
-        body: 'Zero overdue cards detected. Tasks are progressing smoothly according to the board timeline.',
+        body: `Zero overdue cards detected ${periodDesc}. Tasks are progressing smoothly.`,
         recommendations: [
           'Add due dates and assignees to cards to monitor project health velocity.',
           'Organize cards into lists to track completion progress.'
@@ -36,10 +40,14 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
   members.forEach(m => { memberMap[m.id] = m; });
 
   const now = new Date();
+  const rangeStartMs = rangeDays ? (now.getTime() - rangeDays * 24 * 60 * 60 * 1000) : 0;
+  const rangeEndMs = rangeDays ? (now.getTime() + rangeDays * 24 * 60 * 60 * 1000) : Infinity;
+
   let overdueCount = 0;
   let dueSoonCount = 0;
   let blockedCount = 0;
   let completedCount = 0;
+  let completedInPeriodCount = 0;
   let ongoingCount = 0;
 
   const atRiskCards = [];
@@ -74,30 +82,83 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
     let isOverdue = false;
     let isDueSoon = false;
     let daysOverdue = 0;
+    let diffDays = 0;
 
-    if (card.due && !isCompleted) {
-      const dueDate = new Date(card.due);
-      const diffMs = dueDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const dueMs = card.due ? new Date(card.due).getTime() : null;
+    const activityMs = card.dateLastActivity ? new Date(card.dateLastActivity).getTime() : null;
+
+    if (dueMs && !isCompleted) {
+      const diffMs = dueMs - now.getTime();
+      diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
       if (diffMs < 0) {
-        isOverdue = true;
         daysOverdue = Math.max(1, Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24)));
-      } else if (diffDays <= 3) {
-        isDueSoon = true;
+        // In All Time: all overdue cards qualify
+        // In N days: card became overdue in the last N days (daysOverdue <= rangeDays) OR had activity in this period
+        if (isAllTime || daysOverdue <= rangeDays || (activityMs && activityMs >= rangeStartMs)) {
+          isOverdue = true;
+        }
+      } else {
+        // Due soon: due in the upcoming window
+        const dueSoonThreshold = isAllTime ? 7 : Math.min(rangeDays, 30);
+        if (diffDays <= dueSoonThreshold) {
+          isDueSoon = true;
+        }
       }
     }
 
+    // Determine if completed card belongs to this period
+    let isCompletedInPeriod = false;
     if (isCompleted) {
-      completedCount++;
+      if (isAllTime) {
+        isCompletedInPeriod = true;
+      } else {
+        if (activityMs && activityMs >= rangeStartMs) {
+          isCompletedInPeriod = true;
+        } else if (dueMs && dueMs >= rangeStartMs && dueMs <= now.getTime()) {
+          isCompletedInPeriod = true;
+        }
+      }
+    }
+
+    // Determine if blocked card belongs to this period
+    let isBlockedInPeriod = false;
+    if (isBlocked && !isCompleted) {
+      if (isAllTime) {
+        isBlockedInPeriod = true;
+      } else {
+        if (activityMs && activityMs >= rangeStartMs) {
+          isBlockedInPeriod = true;
+        } else if (dueMs && dueMs >= rangeStartMs && dueMs <= rangeEndMs) {
+          isBlockedInPeriod = true;
+        } else if (!dueMs) {
+          isBlockedInPeriod = true;
+        }
+      }
+    }
+
+    // Tally counts for this period
+    if (isCompleted) {
+      if (isAllTime) {
+        completedCount++;
+        completedInPeriodCount++;
+      } else {
+        if (isCompletedInPeriod) {
+          completedCount++;
+          completedInPeriodCount++;
+        }
+      }
     } else if (isOverdue) {
       overdueCount++;
     } else if (isDueSoon) {
       dueSoonCount++;
-    } else if (isBlocked) {
+    } else if (isBlockedInPeriod) {
       blockedCount++;
     } else {
-      ongoingCount++;
+      // Check if ongoing card belongs in period
+      if (isAllTime || (activityMs && activityMs >= rangeStartMs) || (dueMs && dueMs >= rangeStartMs && dueMs <= rangeEndMs)) {
+        ongoingCount++;
+      }
     }
 
     // Extract member IDs whether card has .idMembers or .members array
@@ -114,21 +175,25 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
       });
     }
 
+    // Update workload for members assigned to cards in this period
     assignedIds.forEach(memId => {
       if (memberWorkload[memId]) {
-        memberWorkload[memId].totalCards++;
-        if (isCompleted) memberWorkload[memId].completedCards++;
-        if (isOverdue) memberWorkload[memId].overdueCards++;
+        if (isAllTime || isOverdue || isDueSoon || isBlockedInPeriod || isCompletedInPeriod || (activityMs && activityMs >= rangeStartMs)) {
+          memberWorkload[memId].totalCards++;
+          if (isCompleted && isCompletedInPeriod) memberWorkload[memId].completedCards++;
+          if (isOverdue) memberWorkload[memId].overdueCards++;
+        }
       }
     });
 
-    // Populate at-risk list if overdue, due soon, or blocked
-    if ((isOverdue || isDueSoon || isBlocked) && !isCompleted) {
+    // Populate at-risk list for cards at risk within the selected timeframe
+    if ((isOverdue || isDueSoon || isBlockedInPeriod) && !isCompleted) {
       const firstMemberId = assignedIds[0];
       let memberObj = memberWorkload[firstMemberId];
       if (!memberObj && memberMap[firstMemberId]) {
         const m = memberMap[firstMemberId];
         memberObj = {
+          id: m.id,
           name: m.fullName || m.username || 'Member',
           initials: (m.initials || m.fullName?.slice(0, 2) || m.username?.slice(0, 2) || 'TM').toUpperCase(),
           avatar: m.avatar || m.avatarUrl || null,
@@ -138,6 +203,7 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
       if (!memberObj && Array.isArray(card.members) && card.members[0] && typeof card.members[0] === 'object') {
         const m = card.members[0];
         memberObj = {
+          id: m.id,
           name: m.fullName || m.username || 'Member',
           initials: (m.initials || m.fullName?.slice(0, 2) || m.username?.slice(0, 2) || 'TM').toUpperCase(),
           avatar: m.avatar || m.avatarUrl || null,
@@ -206,8 +272,11 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
     return b.daysOverdue - a.daysOverdue;
   });
 
-  // Calculate Health Score (0 - 100)
-  const total = cards.length;
+  // Calculate Health Score (0 - 100) based on active cards in this period
+  const total = isAllTime 
+    ? cards.length 
+    : Math.max(1, overdueCount + dueSoonCount + blockedCount + completedCount + ongoingCount);
+
   let score = 100;
   if (total > 0) {
     const overduePenalty = (overdueCount / total) * 60;
@@ -218,16 +287,19 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
 
   let healthStatus = 'ON TRACK';
   let headline = 'Project velocity is strong';
-  let impactText = 'All milestones are on schedule with minimal blockers.';
+  let impactText = `All milestones are on schedule ${periodDesc}.`;
 
   if (score < 70) {
     healthStatus = 'AT RISK';
     headline = 'Deadlines need attention';
-    impactText = `${overdueCount} overdue cards may affect upcoming delivery targets.`;
+    impactText = `${overdueCount} overdue card${overdueCount === 1 ? '' : 's'} ${periodDesc} may affect delivery targets.`;
   } else if (score < 85) {
     healthStatus = 'MODERATE RISK';
     headline = 'Some items approaching due dates';
-    impactText = `${dueSoonCount} cards are due in the next 72 hours.`;
+    impactText = `${dueSoonCount} card${dueSoonCount === 1 ? '' : 's'} are approaching deadlines ${periodDesc}.`;
+  } else if (overdueCount === 0) {
+    headline = 'Project velocity is strong';
+    impactText = `Zero overdue cards detected ${periodDesc}. Delivery is on schedule.`;
   }
 
   // Workload array sorted by overdue tasks desc
@@ -242,7 +314,8 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
     blockedCount,
     dueSoonCount,
     workloadSignals,
-    atRiskCards
+    atRiskCards,
+    filterRange
   });
 
   return {
@@ -257,7 +330,7 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
       completed: completedCount,
       ongoing: ongoingCount,
       totalCards: total,
-      completedInPeriod: completedCount
+      completedInPeriod: completedInPeriodCount
     },
     atRiskCards,
     workloadSignals,
@@ -291,13 +364,16 @@ export function getMemberColor(str = '') {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function generateAiSummary({ score, overdueCount, blockedCount, workloadSignals, atRiskCards }) {
+function generateAiSummary({ score, overdueCount, blockedCount, dueSoonCount, workloadSignals, atRiskCards, filterRange = '30' }) {
+  const isAllTime = !filterRange || filterRange === 'all';
+  const periodDesc = isAllTime ? 'across all time' : `in the last ${filterRange} days`;
+
   if (overdueCount > 0) {
     const topOverdueMember = workloadSignals.find(m => m.overdueCards > 0);
     const memberNote = topOverdueMember ? ` with ${topOverdueMember.name} having ${topOverdueMember.overdueCards} overdue cards` : '';
     return {
       title: score < 70 ? 'Delivery risk has increased.' : 'Minor bottleneck detected.',
-      body: `${overdueCount} critical card${overdueCount === 1 ? ' is' : 's are'} overdue${memberNote}. Review priority items before the next milestone.`,
+      body: `${overdueCount} critical card${overdueCount === 1 ? ' is' : 's are'} overdue ${periodDesc}${memberNote}. Review priority items before the next milestone.`,
       recommendations: [
         `Triage ${atRiskCards.slice(0, 2).map(c => `"${c.title}"`).join(' and ')} in tomorrow's standup.`,
         'Rebalance workload from team members with multiple overdue assignments.',
@@ -309,7 +385,7 @@ function generateAiSummary({ score, overdueCount, blockedCount, workloadSignals,
   if (blockedCount > 0) {
     return {
       title: 'Attention needed on blocked tasks.',
-      body: `${blockedCount} card${blockedCount === 1 ? ' is' : 's are'} currently marked as blocked. Unblocking these will keep velocity on track.`,
+      body: `${blockedCount} card${blockedCount === 1 ? ' is' : 's are'} currently marked as blocked ${periodDesc}. Unblocking these will keep velocity on track.`,
       recommendations: [
         'Coordinate with cross-functional partners to resolve blocking dependencies.',
         'Tag card assignees for quick status updates.'
@@ -317,9 +393,20 @@ function generateAiSummary({ score, overdueCount, blockedCount, workloadSignals,
     };
   }
 
+  if (dueSoonCount > 0) {
+    return {
+      title: 'Upcoming deadlines approaching.',
+      body: `${dueSoonCount} card${dueSoonCount === 1 ? ' is' : 's are'} scheduled for completion ${periodDesc}. Prioritize these to prevent release delays.`,
+      recommendations: [
+        'Check in with task owners to ensure all deliverables are on track.',
+        'Address any pre-requisites or pending reviews.'
+      ]
+    };
+  }
+
   return {
     title: 'Project health is optimal.',
-    body: 'Zero overdue cards detected. Tasks are progressing smoothly according to the board timeline.',
+    body: `Zero overdue cards detected ${periodDesc}. Tasks are progressing smoothly according to the board timeline.`,
     recommendations: [
       'Maintain current sprint pace and checklist completion rates.',
       'Plan upcoming backlog items for next milestone.'

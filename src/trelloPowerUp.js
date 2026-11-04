@@ -87,7 +87,7 @@ export async function getBoardData(t) {
     } catch (e) {
       console.warn("t.cards('all') failed, attempting explicit fields:", e);
       try {
-        cards = await t.cards('id', 'name', 'idList', 'due', 'dueComplete', 'labels', 'url', 'members', 'badges');
+        cards = await t.cards('id', 'name', 'idList', 'due', 'dueComplete', 'labels', 'url', 'members', 'badges', 'dateLastActivity');
       } catch (e2) {
         console.warn("t.cards explicit failed, attempting basic fields:", e2);
         try {
@@ -149,6 +149,7 @@ export async function getBoardData(t) {
         idList: c.idList,
         due: c.due || null,
         dueComplete: Boolean(c.dueComplete || c.badges?.dueComplete),
+        dateLastActivity: c.dateLastActivity || null,
         labels: Array.isArray(c.labels) ? c.labels : [],
         idMembers,
         members: Array.isArray(c.members) ? c.members : [],

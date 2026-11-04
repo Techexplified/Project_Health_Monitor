@@ -75,20 +75,22 @@ export default function App() {
   // Recalculate health metrics whenever timeRange changes
   const handleTimeRangeChange = (newRange) => {
     setTimeRange(newRange);
-    if (boardData) {
-      const health = computeProjectHealth({
-        cards: boardData.cards || [],
-        lists: boardData.lists || [],
-        members: boardData.members || [],
-        filterRange: newRange
-      });
+    const activeCards = boardData?.cards || [];
+    const activeLists = boardData?.lists || [];
+    const activeMembers = boardData?.members || members || [];
 
-      if (health) {
-        setMetrics(health.metrics);
-        setAtRiskCards(health.atRiskCards);
-        setWorkloadSignals(health.workloadSignals);
-        setAiSummary(health.aiSummary);
-      }
+    const health = computeProjectHealth({
+      cards: activeCards,
+      lists: activeLists,
+      members: activeMembers,
+      filterRange: newRange
+    });
+
+    if (health) {
+      setMetrics(health.metrics);
+      setAtRiskCards(health.atRiskCards);
+      setWorkloadSignals(health.workloadSignals);
+      setAiSummary(health.aiSummary);
     }
   };
 
