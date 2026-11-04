@@ -152,6 +152,33 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
         };
       }
 
+      // Collect all assigned member objects for multi-member filtering
+      const allAssignedMembers = [];
+      assignedIds.forEach(id => {
+        if (memberWorkload[id]) allAssignedMembers.push(memberWorkload[id]);
+        else if (memberMap[id]) {
+          const m = memberMap[id];
+          allAssignedMembers.push({
+            id: m.id,
+            name: m.fullName || m.username || 'Member',
+            username: m.username ? `@${m.username}` : '',
+            avatar: m.avatar || m.avatarUrl || null
+          });
+        }
+      });
+      if (Array.isArray(card.members)) {
+        card.members.forEach(m => {
+          if (m && typeof m === 'object' && !allAssignedMembers.some(existing => existing.id === m.id)) {
+            allAssignedMembers.push({
+              id: m.id,
+              name: m.fullName || m.username || 'Member',
+              username: m.username ? `@${m.username}` : '',
+              avatar: m.avatar || m.avatarUrl || null
+            });
+          }
+        });
+      }
+
       const cardUrl = card.url && card.url !== '#' 
         ? card.url 
         : (card.shortLink ? `https://trello.com/c/${card.shortLink}` : (card.id ? `https://trello.com/c/${card.id}` : '#'));
@@ -161,6 +188,8 @@ export function computeProjectHealth({ cards = [], lists = [], members = [], fil
         title: card.name || card.title || 'Untitled Card',
         listName: listMap[card.idList] || 'Card',
         member: memberObj,
+        members: allAssignedMembers,
+        memberIds: assignedIds,
         dueDate: card.due ? formatCardDue(card.due) : (isBlocked ? 'Blocked' : 'No date'),
         daysOverdue,
         riskType: isOverdue ? 'Overdue' : (isDueSoon ? 'Due soon' : 'Blocked'),
