@@ -233,85 +233,81 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 p-2 sm:p-5 flex items-center justify-center">
-      {/* Main Modal Card matching Figma Wireframe */}
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden animate-in fade-in zoom-in-98 duration-150">
-        {/* Header */}
-        <Header
-          boardName={boardName}
-          timeRange={timeRange}
-          setTimeRange={handleTimeRangeChange}
-          onExport={handleExport}
-          onRefresh={handleRefresh}
-          onClose={handleClose}
-          isRefreshing={isRefreshing}
-        />
+    <div className="min-h-screen bg-white w-full flex flex-col antialiased">
+      {/* Header */}
+      <Header
+        boardName={boardName}
+        timeRange={timeRange}
+        setTimeRange={handleTimeRangeChange}
+        onExport={handleExport}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
 
-        {/* Dashboard Body */}
-        <div className="p-5 sm:p-6 space-y-4">
-          {/* Top Row: Health Score Card (Left) & 4 Status Stat Cards (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            {/* Health Score Card */}
-            <div className="lg:col-span-6 flex">
-              <div className="w-full">
-                <HealthScoreCard
-                  score={metrics.healthScore}
-                  status={metrics.healthStatus}
-                  headline={metrics.headline}
-                  impactText={metrics.impactText}
-                />
-              </div>
-            </div>
-
-            {/* 4 Status Stat Cards */}
-            <div className="lg:col-span-6 flex">
-              <div className="w-full">
-                <StatusStatCards
-                  overdue={metrics.overdue}
-                  dueSoon={metrics.dueSoon}
-                  blocked={metrics.blocked}
-                  completed={metrics.completed}
-                  onFilterClick={(statusId) => {
-                    console.log('Filtered by status:', statusId);
-                  }}
-                />
-              </div>
+      {/* Dashboard Body */}
+      <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 space-y-4 flex-1">
+        {/* Top Row: Health Score Card (Left) & 4 Status Stat Cards (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          {/* Health Score Card */}
+          <div className="lg:col-span-6 flex">
+            <div className="w-full">
+              <HealthScoreCard
+                score={metrics.healthScore}
+                status={metrics.healthStatus}
+                headline={metrics.headline}
+                impactText={metrics.impactText}
+              />
             </div>
           </div>
 
-          {/* AI Project Summary Banner */}
-          <AiSummaryBanner
-            title={aiSummary.title}
-            body={aiSummary.body}
-            onViewInsights={() => setIsInsightsOpen(true)}
-          />
-
-          {/* Lower Two-Column Section: Deadline Risk (Left) & Task Status / Workload (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            {/* Left Column: Deadline Risk */}
-            <div className="lg:col-span-7">
-              <DeadlineRiskSection
-                cards={atRiskCards}
-                members={members}
-                onCardClick={handleCardClick}
-              />
-            </div>
-
-            {/* Right Column: Task Status Bars & Workload Signals */}
-            <div className="lg:col-span-5 space-y-4">
-              <TaskStatusBars
-                completed={metrics.completed}
-                ongoing={metrics.ongoing}
+          {/* 4 Status Stat Cards */}
+          <div className="lg:col-span-6 flex">
+            <div className="w-full">
+              <StatusStatCards
                 overdue={metrics.overdue}
+                dueSoon={metrics.dueSoon}
                 blocked={metrics.blocked}
-                totalCards={metrics.totalCards}
-                completedInPeriod={metrics.completedInPeriod}
-              />
-
-              <WorkloadSignals
-                members={workloadSignals}
+                completed={metrics.completed}
+                onFilterClick={(statusId) => {
+                  console.log('Filtered by status:', statusId);
+                }}
               />
             </div>
+          </div>
+        </div>
+
+        {/* AI Project Summary Banner */}
+        <AiSummaryBanner
+          title={aiSummary.title}
+          body={aiSummary.body}
+          onViewInsights={() => setIsInsightsOpen(true)}
+        />
+
+        {/* Lower Two-Column Section: Deadline Risk (Left) & Task Status / Workload (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Deadline Risk */}
+          <div className="lg:col-span-7">
+            <DeadlineRiskSection
+              cards={atRiskCards}
+              members={members}
+              onCardClick={handleCardClick}
+            />
+          </div>
+
+          {/* Right Column: Task Status Bars & Workload Signals */}
+          <div className="lg:col-span-5 space-y-4">
+            <TaskStatusBars
+              completed={metrics.completed}
+              ongoing={metrics.ongoing}
+              overdue={metrics.overdue}
+              blocked={metrics.blocked}
+              totalCards={metrics.totalCards}
+              completedInPeriod={metrics.completedInPeriod}
+            />
+
+            <WorkloadSignals
+              members={workloadSignals}
+            />
           </div>
         </div>
       </div>

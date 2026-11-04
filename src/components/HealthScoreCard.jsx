@@ -8,7 +8,7 @@ export default function HealthScoreCard({
   impactText = '12 overdue cards may affect the project launch target.'
 }) {
   // SVG circular gauge properties
-  const radius = 38;
+  const radius = 37;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
@@ -32,7 +32,7 @@ export default function HealthScoreCard({
             cy="48"
             r={radius}
             stroke="#f1f5f9"
-            strokeWidth="8"
+            strokeWidth="7"
             fill="transparent"
           />
           {/* Progress stroke */}
@@ -41,7 +41,7 @@ export default function HealthScoreCard({
             cy="48"
             r={radius}
             stroke={strokeColor}
-            strokeWidth="8"
+            strokeWidth="7"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -51,12 +51,12 @@ export default function HealthScoreCard({
         </svg>
 
         {/* Center score & label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none select-none">
           <span className="text-2xl font-black text-slate-900 leading-none tracking-tight">
             {score}
           </span>
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-            Health score
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">
+            Score
           </span>
         </div>
       </div>

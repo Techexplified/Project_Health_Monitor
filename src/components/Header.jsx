@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Download, X, Trello, RefreshCw } from 'lucide-react';
+import { Calendar, Download, Trello, RefreshCw } from 'lucide-react';
 
 export default function Header({
   boardName,
@@ -7,7 +7,6 @@ export default function Header({
   setTimeRange,
   onExport,
   onRefresh,
-  onClose,
   isRefreshing
 }) {
   return (
@@ -71,15 +70,6 @@ export default function Header({
           title="Sync board data"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-        </button>
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer ml-1"
-          title="Close Dashboard"
-        >
-          <X className="w-4 h-4" />
         </button>
       </div>
     </div>
